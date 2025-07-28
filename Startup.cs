@@ -6,7 +6,10 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
 using ContosoHotels.Data;
 using ContosoHotels.Services;
+using ContosoHotels.Configuration;
+using Microsoft.SemanticKernel;
 using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace ContosoHotels
 {
@@ -44,6 +47,98 @@ namespace ContosoHotels
                 });
             });
 
+            // Configure AI Concierge settings
+            var aiConfig = Configuration.GetSection(AIConciergeConfiguration.SectionName)
+                .Get<AIConciergeConfiguration>();
+            
+            if (aiConfig != null)
+            {
+                services.Configure<AIConciergeConfiguration>(
+                    Configuration.GetSection(AIConciergeConfiguration.SectionName));
+                
+                // Helper method to resolve environment variables
+                string ResolveEnvironmentVariable(string value)
+                {
+                    if (value.StartsWith("${") && value.EndsWith("}"))
+                    {
+                        var envVarName = value.Substring(2, value.Length - 3);
+                        return Environment.GetEnvironmentVariable(envVarName);
+                    }
+                    return value;
+                }
+                
+                // Try Azure AI first (preferred), then fallback to OpenAI
+                bool configuredSuccessfully = false;
+                
+                // Attempt Azure AI configuration
+                var azureApiKey = ResolveEnvironmentVariable(aiConfig.Azure.ApiKey);
+                var azureEndpoint = ResolveEnvironmentVariable(aiConfig.Azure.Endpoint);
+                
+                if (!string.IsNullOrEmpty(azureApiKey) && !string.IsNullOrEmpty(azureEndpoint))
+                {
+                    try
+                    {
+                        // Configure Semantic Kernel with Azure OpenAI
+                        services.AddScoped<Kernel>(serviceProvider =>
+                        {
+                            var builder = Kernel.CreateBuilder();
+                            builder.AddAzureOpenAIChatCompletion(
+                                deploymentName: aiConfig.Azure.ChatDeploymentName,
+                                endpoint: azureEndpoint,
+                                apiKey: azureApiKey);
+                            return builder.Build();
+                        });
+                        
+                        configuredSuccessfully = true;
+                        Console.WriteLine("AI Concierge configured with Azure AI Foundry endpoints.");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Warning: Failed to configure Azure AI: {ex.Message}. Attempting OpenAI fallback...");
+                    }
+                }
+                
+                // Fallback to OpenAI if Azure configuration failed
+                if (!configuredSuccessfully)
+                {
+                    var openAiApiKey = ResolveEnvironmentVariable(aiConfig.OpenAI.ApiKey);
+                    
+                    if (!string.IsNullOrEmpty(openAiApiKey))
+                    {
+                        try
+                        {
+                            // Validate configuration
+                            var validationContext = new ValidationContext(aiConfig);
+                            Validator.ValidateObject(aiConfig, validationContext, validateAllProperties: true);
+                            
+                            // Configure Semantic Kernel with OpenAI
+                            services.AddScoped<Kernel>(serviceProvider =>
+                            {
+                                var builder = Kernel.CreateBuilder();
+                                builder.AddOpenAIChatCompletion(
+                                    modelId: aiConfig.OpenAI.ChatModel,
+                                    apiKey: openAiApiKey);
+                                return builder.Build();
+                            });
+                            
+                            configuredSuccessfully = true;
+                            Console.WriteLine("AI Concierge configured with OpenAI endpoints.");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Warning: Failed to configure OpenAI: {ex.Message}. AI features will be disabled.");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Warning: No API keys found for Azure AI or OpenAI. AI features will be disabled.");
+                    }
+                }
+            }
+
+            // Add SignalR for real-time chat
+            services.AddSignalR();
+
             services.AddScoped<DataSeedingService>();
 
             services.AddControllersWithViews();
@@ -75,6 +170,10 @@ namespace ContosoHotels
                 endpoints.MapControllerRoute(
                     name: "default",
                     pattern: "{controller=Home}/{action=Index}/{id?}");
+                
+                // Add SignalR hub for chat functionality
+                // Hub will be created in Phase 2
+                // endpoints.MapHub<ChatHub>("/chathub");
             });
         }
     }

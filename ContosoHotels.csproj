@@ -9,6 +9,14 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <!-- AI Concierge Dependencies -->
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.18.2" />
+    <PackageReference Include="Microsoft.SemanticKernel.Connectors.OpenAI" Version="1.18.2" />
+    <PackageReference Include="Microsoft.SemanticKernel.Connectors.AzureOpenAI" Version="1.18.2" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="3.1.32" />
+    <!-- Environment File Support -->
+    <PackageReference Include="DotNetEnv" Version="2.5.0" />
   </ItemGroup>
 
 </Project>
