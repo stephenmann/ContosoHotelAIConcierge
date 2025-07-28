@@ -139,6 +139,9 @@ namespace ContosoHotels
             // Add SignalR for real-time chat
             services.AddSignalR();
 
+            // Register AI Concierge Service
+            services.AddScoped<AIConciergeService>();
+
             services.AddScoped<DataSeedingService>();
 
             services.AddControllersWithViews();
@@ -172,8 +175,7 @@ namespace ContosoHotels
                     pattern: "{controller=Home}/{action=Index}/{id?}");
                 
                 // Add SignalR hub for chat functionality
-                // Hub will be created in Phase 2
-                // endpoints.MapHub<ChatHub>("/chathub");
+                endpoints.MapHub<ChatHub>("/chathub");
             });
         }
     }

@@ -98,23 +98,250 @@ class ContosoHotelsChatWidget {
         window.addEventListener('resize', () => {
             this.adjustChatPosition();
         });
+
+        // Handle page unload - cleanup SignalR connection
+        window.addEventListener('beforeunload', () => {
+            this.cleanup();
+        });
     }
     
     initializeSignalR() {
         try {
-            // Initialize SignalR connection (will be implemented in Phase 2.2)
-            console.log('SignalR connection will be initialized in Phase 2.2');
-            
-            // Simulate connection status for now
-            setTimeout(() => {
-                this.isConnected = true;
-                this.updateConnectionStatus();
-            }, 1000);
+            // Create SignalR connection to ChatHub
+            this.connection = new signalR.HubConnectionBuilder()
+                .withUrl("/chathub")
+                .withAutomaticReconnect([0, 2000, 10000, 30000])
+                .configureLogging(signalR.LogLevel.Information)
+                .build();
+
+            // Set up event handlers
+            this.setupSignalREventHandlers();
+
+            // Start the connection
+            this.startConnection();
             
         } catch (error) {
             console.error('SignalR initialization error:', error);
             this.updateConnectionStatus(false);
         }
+    }
+
+    setupSignalREventHandlers() {
+        // Connection established
+        this.connection.on("ConnectionEstablished", (data) => {
+            console.log('Connected to chat hub:', data);
+            this.isConnected = true;
+            this.updateConnectionStatus(true);
+            
+            // Auto-join or create conversation if needed
+            this.ensureConversation();
+        });
+
+        // Agent message received
+        this.connection.on("AgentMessage", (data) => {
+            console.log('Agent message received:', data);
+            this.hideTypingIndicator();
+            this.addMessage(data.Message, 'agent', data.AgentType);
+            
+            // Save to database
+            this.saveMessageToDatabase(data.ConversationId, data.Message, false, data.AgentType);
+        });
+
+        // Message received confirmation
+        this.connection.on("MessageReceived", (data) => {
+            console.log('Message received confirmation:', data);
+        });
+
+        // Agent typing indicator
+        this.connection.on("AgentTyping", (data) => {
+            if (data.IsTyping) {
+                this.showTypingIndicator();
+            } else {
+                this.hideTypingIndicator();
+            }
+        });
+
+        // Conversation joined
+        this.connection.on("ConversationJoined", (data) => {
+            console.log('Joined conversation:', data);
+            this.conversationId = data.ConversationId;
+            this.saveState();
+            
+            // Load conversation history
+            this.loadConversationHistory();
+        });
+
+        // Message error
+        this.connection.on("MessageError", (data) => {
+            console.error('Message error:', data);
+            this.addMessage('Sorry, there was an error processing your message. Please try again.', 'agent', 'general');
+        });
+
+        // Connection events
+        this.connection.onreconnecting((error) => {
+            console.warn('SignalR reconnecting:', error);
+            this.updateConnectionStatus(false);
+            this.agentStatusText.textContent = 'Reconnecting...';
+        });
+
+        this.connection.onreconnected((connectionId) => {
+            console.log('SignalR reconnected:', connectionId);
+            this.updateConnectionStatus(true);
+            
+            // Rejoin conversation if we had one
+            if (this.conversationId) {
+                this.connection.invoke("JoinConversation", this.conversationId)
+                    .catch(err => console.error('Error rejoining conversation:', err));
+            }
+        });
+
+        this.connection.onclose((error) => {
+            console.error('SignalR connection closed:', error);
+            this.updateConnectionStatus(false);
+            this.agentStatusText.textContent = 'Disconnected';
+            
+            // Attempt manual reconnection after a delay
+            setTimeout(() => {
+                if (this.connection.state === signalR.HubConnectionState.Disconnected) {
+                    this.startConnection();
+                }
+            }, 5000);
+        });
+    }
+
+    async startConnection() {
+        try {
+            await this.connection.start();
+            console.log("SignalR Connected successfully");
+        } catch (err) {
+            console.error("SignalR Connection failed:", err);
+            this.updateConnectionStatus(false);
+            
+            // Retry connection after delay
+            setTimeout(() => this.startConnection(), 5000);
+        }
+    }
+
+    async ensureConversation() {
+        if (!this.conversationId) {
+            try {
+                // Create new conversation via API
+                const response = await fetch('/api/chat/conversations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        sessionId: this.generateSessionId(),
+                        userId: null // Anonymous for now
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.conversationId = data.conversationId;
+                    this.saveState();
+                    
+                    // Join the conversation via SignalR
+                    await this.connection.invoke("JoinConversation", this.conversationId);
+                } else {
+                    throw new Error('Failed to create conversation');
+                }
+            } catch (error) {
+                console.error('Error creating conversation:', error);
+            }
+        } else {
+            // Join existing conversation
+            try {
+                await this.connection.invoke("JoinConversation", this.conversationId);
+            } catch (error) {
+                console.error('Error joining conversation:', error);
+                // Reset conversation ID and try again
+                this.conversationId = null;
+                this.ensureConversation();
+            }
+        }
+    }
+
+    generateSessionId() {
+        // Generate a unique session ID for this browser session
+        let sessionId = sessionStorage.getItem('contoso-session-id');
+        if (!sessionId) {
+            sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            sessionStorage.setItem('contoso-session-id', sessionId);
+        }
+        return sessionId;
+    }
+
+    async loadConversationHistory() {
+        if (!this.conversationId) return;
+
+        try {
+            const response = await fetch(`/api/chat/conversations/${this.conversationId}/messages?limit=50`);
+            
+            if (response.ok) {
+                const data = await response.json();
+                
+                // Clear welcome message and existing messages
+                const welcomeMessage = this.chatMessages.querySelector('.welcome-message');
+                if (welcomeMessage && data.Messages.length > 0) {
+                    welcomeMessage.remove();
+                }
+                
+                // Clear existing message history display (not the stored history)
+                const existingMessages = this.chatMessages.querySelectorAll('.message');
+                existingMessages.forEach(msg => msg.remove());
+                
+                // Display historical messages
+                data.Messages.forEach(msg => {
+                    this.displayHistoricalMessage(msg);
+                });
+                
+                // Update message history array
+                this.messageHistory = data.Messages.map(msg => ({
+                    text: msg.MessageText,
+                    sender: msg.IsFromUser ? 'user' : 'agent',
+                    agentType: msg.AgentType,
+                    timestamp: new Date(msg.Timestamp)
+                }));
+                
+                this.scrollToBottom();
+            }
+        } catch (error) {
+            console.warn('Could not load conversation history:', error);
+        }
+    }
+
+    displayHistoricalMessage(msg) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${msg.IsFromUser ? 'user' : 'agent'}`;
+        
+        const bubbleDiv = document.createElement('div');
+        bubbleDiv.className = 'message-bubble';
+        
+        // Add agent tag for agent messages
+        if (!msg.IsFromUser && msg.AgentType) {
+            const agentTag = document.createElement('div');
+            agentTag.className = `agent-tag ${msg.AgentType}`;
+            agentTag.textContent = this.getAgentLabel(msg.AgentType);
+            bubbleDiv.appendChild(agentTag);
+        }
+        
+        // Add message text with line breaks
+        const messageText = document.createElement('div');
+        messageText.innerHTML = msg.MessageText.replace(/\n/g, '<br>');
+        bubbleDiv.appendChild(messageText);
+        
+        messageDiv.appendChild(bubbleDiv);
+        
+        // Add timestamp
+        const timeDiv = document.createElement('div');
+        timeDiv.className = 'message-time';
+        const timestamp = new Date(msg.Timestamp);
+        timeDiv.textContent = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        messageDiv.appendChild(timeDiv);
+        
+        this.chatMessages.appendChild(messageDiv);
     }
     
     initializeAutoResize() {
@@ -181,52 +408,56 @@ class ContosoHotelsChatWidget {
     }
     
     sendToAgent(message) {
-        // Simulate AI response for now (will be replaced with SignalR in Phase 2.2)
-        setTimeout(() => {
+        if (!this.connection || this.connection.state !== signalR.HubConnectionState.Connected) {
+            console.error('SignalR connection not available');
             this.hideTypingIndicator();
-            
-            // Simulate different agent responses based on message content
-            let response = this.generateSimulatedResponse(message);
-            this.addMessage(response.text, 'agent', response.agent);
-        }, 1500 + Math.random() * 1000); // Random delay for realism
+            this.addMessage('Connection error. Please check your internet connection and try again.', 'agent', 'general');
+            return;
+        }
+
+        if (!this.conversationId) {
+            console.error('No conversation ID available');
+            this.hideTypingIndicator();
+            this.addMessage('Session error. Please refresh the page and try again.', 'agent', 'general');
+            return;
+        }
+
+        // Send message via SignalR
+        this.connection.invoke("SendMessage", this.conversationId, message)
+            .then(() => {
+                console.log('Message sent successfully');
+                // Save user message to database
+                this.saveMessageToDatabase(this.conversationId, message, true);
+            })
+            .catch(err => {
+                console.error('Error sending message:', err);
+                this.hideTypingIndicator();
+                this.addMessage('Failed to send message. Please try again.', 'agent', 'general');
+            });
     }
-    
-    generateSimulatedResponse(message) {
-        const lowerMessage = message.toLowerCase();
-        
-        if (lowerMessage.includes('book') || lowerMessage.includes('room') || lowerMessage.includes('reservation')) {
-            return {
-                text: "I'd be happy to help you book a room! To get started, could you please tell me:\n\n• What dates are you looking to stay?\n• Which city would you prefer?\n• How many guests will be staying?\n\nI can then show you our available rooms with pricing and amenities.",
-                agent: 'booking'
-            };
+
+    async saveMessageToDatabase(conversationId, messageText, isFromUser, agentType = null) {
+        try {
+            const response = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    isFromUser: isFromUser,
+                    messageText: messageText,
+                    agentType: agentType,
+                    containsSensitiveData: false,
+                    messageMetadata: null
+                })
+            });
+
+            if (!response.ok) {
+                console.warn('Failed to save message to database');
+            }
+        } catch (error) {
+            console.warn('Error saving message to database:', error);
         }
-        
-        if (lowerMessage.includes('service') || lowerMessage.includes('food') || lowerMessage.includes('dining') || lowerMessage.includes('menu')) {
-            return {
-                text: "I can help you with room service! Our kitchen is open 24/7 and we have a variety of options including:\n\n• Continental and American breakfast\n• Lunch and dinner entrees\n• Snacks and beverages\n• Dietary accommodations\n\nWould you like me to show you our current menu, or do you have something specific in mind?",
-                agent: 'service'
-            };
-        }
-        
-        if (lowerMessage.includes('housekeeping') || lowerMessage.includes('cleaning') || lowerMessage.includes('towels') || lowerMessage.includes('maintenance')) {
-            return {
-                text: "I can arrange housekeeping services for you! We offer:\n\n• Daily room cleaning\n• Fresh towels and linens\n• Maintenance requests\n• Special cleaning services\n\nWhat type of housekeeping assistance do you need today?",
-                agent: 'housekeeping'
-            };
-        }
-        
-        if (lowerMessage.includes('amenities') || lowerMessage.includes('facilities') || lowerMessage.includes('pool') || lowerMessage.includes('gym')) {
-            return {
-                text: "Contoso Hotels offers exceptional amenities including:\n\n• Fitness center and spa\n• Swimming pool and hot tub\n• Business center\n• Free Wi-Fi throughout\n• 24/7 concierge service\n• Valet parking\n\nIs there a specific amenity you'd like to know more about?",
-                agent: 'general'
-            };
-        }
-        
-        // Default response
-        return {
-            text: "Thank you for your message! I'm here to assist you with:\n\n• Room bookings and reservations\n• Room service orders\n• Housekeeping requests\n• Hotel amenities and services\n\nHow can I help make your stay more comfortable?",
-            agent: 'general'
-        };
     }
     
     addMessage(text, sender, agentType = null) {
@@ -381,6 +612,23 @@ class ContosoHotelsChatWidget {
         this.openChat();
         if (message) {
             setTimeout(() => this.sendQuickMessage(message), 600);
+        }
+    }
+
+    // Cleanup method for proper resource disposal
+    cleanup() {
+        if (this.connection && this.connection.state === signalR.HubConnectionState.Connected) {
+            try {
+                // Leave conversation before disconnecting
+                if (this.conversationId) {
+                    this.connection.invoke("LeaveConversation", this.conversationId);
+                }
+                
+                // Stop the connection
+                this.connection.stop();
+            } catch (error) {
+                console.warn('Error during cleanup:', error);
+            }
         }
     }
 }
