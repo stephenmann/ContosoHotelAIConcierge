@@ -47,6 +47,11 @@ namespace ContosoHotels.Services
             {
                 await SeedHousekeepingRequestsAsync();
             }
+
+            if (!_context.MenuItems.Any())
+            {
+                await SeedMenuItemsAsync();
+            }
         }
 
         private async Task SeedCustomersAsync()
@@ -455,6 +460,235 @@ namespace ContosoHotels.Services
             }
 
             _context.HousekeepingRequests.AddRange(requests);
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task SeedMenuItemsAsync()
+        {
+            var menuItems = new List<MenuItem>
+            {
+                // Appetizers
+                new MenuItem
+                {
+                    Name = "Classic Caesar Salad",
+                    Description = "Crisp romaine lettuce, parmesan cheese, croutons, and our signature Caesar dressing",
+                    Category = "Appetizer",
+                    Price = 12.95m,
+                    IsAvailable = true,
+                    DietaryInfo = "Contains Gluten, Dairy",
+                    PreparationTimeMinutes = 15,
+                    PopularityScore = 85,
+                    IsCustomizable = true,
+                    SpiceLevel = 0,
+                    Available24Hours = true
+                },
+                new MenuItem
+                {
+                    Name = "Buffalo Wings",
+                    Description = "Spicy chicken wings served with celery sticks and blue cheese dip",
+                    Category = "Appetizer",
+                    Price = 14.95m,
+                    IsAvailable = true,
+                    DietaryInfo = "Contains Dairy, Spicy",
+                    PreparationTimeMinutes = 20,
+                    PopularityScore = 92,
+                    IsCustomizable = true,
+                    SpiceLevel = 3,
+                    Available24Hours = true
+                },
+                new MenuItem
+                {
+                    Name = "Hummus Platter",
+                    Description = "Traditional hummus served with warm pita bread, olives, and fresh vegetables",
+                    Category = "Appetizer",
+                    Price = 11.95m,
+                    IsAvailable = true,
+                    DietaryInfo = "Vegetarian, Vegan",
+                    PreparationTimeMinutes = 10,
+                    PopularityScore = 75,
+                    IsCustomizable = false,
+                    SpiceLevel = 0,
+                    Available24Hours = true
+                },
+
+                // Main Courses
+                new MenuItem
+                {
+                    Name = "Grilled Salmon",
+                    Description = "Fresh Atlantic salmon grilled to perfection, served with seasonal vegetables and rice pilaf",
+                    Category = "Main Course",
+                    Price = 28.95m,
+                    IsAvailable = true,
+                    DietaryInfo = "Contains Fish, Gluten-Free Option Available",
+                    PreparationTimeMinutes = 25,
+                    PopularityScore = 88,
+                    IsCustomizable = true,
+                    SpiceLevel = 0,
+                    Available24Hours = false
+                },
+                new MenuItem
+                {
+                    Name = "Beef Tenderloin Steak",
+                    Description = "8oz prime beef tenderloin cooked to your preference, served with mashed potatoes and asparagus",
+                    Category = "Main Course",
+                    Price = 42.95m,
+                    IsAvailable = true,
+                    DietaryInfo = "Contains Dairy",
+                    PreparationTimeMinutes = 30,
+                    PopularityScore = 95,
+                    IsCustomizable = true,
+                    SpiceLevel = 0,
+                    Available24Hours = false
+                },
+                new MenuItem
+                {
+                    Name = "Chicken Parmesan",
+                    Description = "Breaded chicken breast topped with marinara sauce and melted mozzarella, served with pasta",
+                    Category = "Main Course",
+                    Price = 24.95m,
+                    IsAvailable = true,
+                    DietaryInfo = "Contains Gluten, Dairy",
+                    PreparationTimeMinutes = 25,
+                    PopularityScore = 82,
+                    IsCustomizable = false,
+                    SpiceLevel = 0,
+                    Available24Hours = false
+                },
+                new MenuItem
+                {
+                    Name = "Vegetarian Pasta Primavera",
+                    Description = "Fresh pasta with seasonal vegetables in a light garlic and olive oil sauce",
+                    Category = "Main Course",
+                    Price = 19.95m,
+                    IsAvailable = true,
+                    DietaryInfo = "Vegetarian, Vegan Option Available",
+                    PreparationTimeMinutes = 20,
+                    PopularityScore = 70,
+                    IsCustomizable = true,
+                    SpiceLevel = 0,
+                    Available24Hours = false
+                },
+
+                // Desserts
+                new MenuItem
+                {
+                    Name = "Chocolate Lava Cake",
+                    Description = "Warm chocolate cake with a molten center, served with vanilla ice cream",
+                    Category = "Dessert",
+                    Price = 9.95m,
+                    IsAvailable = true,
+                    DietaryInfo = "Contains Gluten, Dairy, Eggs",
+                    PreparationTimeMinutes = 15,
+                    PopularityScore = 90,
+                    IsCustomizable = false,
+                    SpiceLevel = 0,
+                    Available24Hours = true
+                },
+                new MenuItem
+                {
+                    Name = "New York Cheesecake",
+                    Description = "Rich and creamy cheesecake with graham cracker crust, topped with fresh berries",
+                    Category = "Dessert",
+                    Price = 8.95m,
+                    IsAvailable = true,
+                    DietaryInfo = "Contains Gluten, Dairy, Eggs",
+                    PreparationTimeMinutes = 5,
+                    PopularityScore = 85,
+                    IsCustomizable = false,
+                    SpiceLevel = 0,
+                    Available24Hours = true
+                },
+
+                // Beverages
+                new MenuItem
+                {
+                    Name = "Fresh Orange Juice",
+                    Description = "Freshly squeezed orange juice",
+                    Category = "Beverage",
+                    Price = 5.95m,
+                    IsAvailable = true,
+                    DietaryInfo = "Vegan, Gluten-Free",
+                    PreparationTimeMinutes = 5,
+                    PopularityScore = 80,
+                    IsCustomizable = false,
+                    SpiceLevel = 0,
+                    Available24Hours = true
+                },
+                new MenuItem
+                {
+                    Name = "Premium Coffee",
+                    Description = "Freshly brewed premium coffee blend",
+                    Category = "Beverage",
+                    Price = 4.95m,
+                    IsAvailable = true,
+                    DietaryInfo = "Vegan, Gluten-Free",
+                    PreparationTimeMinutes = 5,
+                    PopularityScore = 95,
+                    IsCustomizable = true,
+                    SpiceLevel = 0,
+                    Available24Hours = true
+                },
+                new MenuItem
+                {
+                    Name = "Craft Beer Selection",
+                    Description = "Local craft beer selection - ask your server for today's options",
+                    Category = "Beverage",
+                    Price = 7.95m,
+                    IsAvailable = true,
+                    DietaryInfo = "Contains Alcohol, Gluten",
+                    PreparationTimeMinutes = 2,
+                    PopularityScore = 75,
+                    IsCustomizable = false,
+                    SpiceLevel = 0,
+                    Available24Hours = false
+                },
+                new MenuItem
+                {
+                    Name = "House Wine",
+                    Description = "Selection of red and white wines by the glass",
+                    Category = "Beverage",
+                    Price = 9.95m,
+                    IsAvailable = true,
+                    DietaryInfo = "Contains Alcohol, Sulfites",
+                    PreparationTimeMinutes = 2,
+                    PopularityScore = 70,
+                    IsCustomizable = false,
+                    SpiceLevel = 0,
+                    Available24Hours = false
+                },
+
+                // Late Night/24 Hour Options
+                new MenuItem
+                {
+                    Name = "Club Sandwich",
+                    Description = "Triple-decker sandwich with turkey, bacon, lettuce, tomato, and mayo, served with fries",
+                    Category = "Light Meal",
+                    Price = 16.95m,
+                    IsAvailable = true,
+                    DietaryInfo = "Contains Gluten, Dairy",
+                    PreparationTimeMinutes = 15,
+                    PopularityScore = 85,
+                    IsCustomizable = true,
+                    SpiceLevel = 0,
+                    Available24Hours = true
+                },
+                new MenuItem
+                {
+                    Name = "Soup of the Day",
+                    Description = "Chef's daily soup selection served with warm bread",
+                    Category = "Light Meal",
+                    Price = 8.95m,
+                    IsAvailable = true,
+                    DietaryInfo = "Varies by Selection",
+                    PreparationTimeMinutes = 10,
+                    PopularityScore = 65,
+                    IsCustomizable = false,
+                    SpiceLevel = 0,
+                    Available24Hours = true
+                }
+            };
+
+            _context.MenuItems.AddRange(menuItems);
             await _context.SaveChangesAsync();
         }
     }

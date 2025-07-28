@@ -4,14 +4,16 @@ using ContosoHotels.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace ContosoHotels.Migrations
 {
     [DbContext(typeof(ContosoHotelsContext))]
-    partial class ContosoHotelsContextModelSnapshot : ModelSnapshot
+    [Migration("20250728171133_AddAIConciergeModels")]
+    partial class AddAIConciergeModels
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
